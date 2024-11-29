@@ -11,7 +11,6 @@ MSP_SET_RAW_RC = 200  # Set RC Channels
 MSP_RAW_IMU = 102  # Get RAW IMU Data
 MSP_DEBUG = 254  # Command to get debug data
 
-
 # Serial Port Settings
 SERIAL_PORT = "/dev/ttyACM0"  # Update based on your setup
 BAUD_RATE = 115200
@@ -19,6 +18,9 @@ BAUD_RATE = 115200
 # Initialize RC Channels (4 Channels: Roll, Pitch, Throttle, Yaw)
 rc_channels = [1500, 1500, 1500, 1500]
 send_rc = True
+
+# Lock for serial access synchronization
+serial_lock = threading.Lock()
 
 # Serial Communication Setup
 def send_msp_command(serial_conn, cmd, payload=[]):
@@ -35,7 +37,10 @@ def send_msp_command(serial_conn, cmd, payload=[]):
         + bytes(payload)  # Payload
         + bytes([checksum])  # Checksum
     )
-    serial_conn.write(packet)
+    
+    # Use the lock to ensure only one thread writes to the serial port at a time
+    with serial_lock:
+        serial_conn.write(packet)
 
 
 def read_msp_response(serial_conn):
@@ -76,8 +81,7 @@ def poll_imu_data(serial_conn):
             debug_values = struct.unpack("<hhhhhhhh", response[1])
             print(f"Debug Values: {debug_values}")
 
-        time.sleep(0.1)  # Poll every 100ms
-
+        time.sleep(1)  # Poll every 100ms
 
 
 def update_rc_channels(serial_conn):
@@ -88,7 +92,7 @@ def update_rc_channels(serial_conn):
             payload += list(struct.pack("<H", ch))  # Convert to little-endian 16-bit
         print(f"Setting RC Channels: {rc_channels}")
         send_msp_command(serial_conn, MSP_SET_RAW_RC, payload)
-        time.sleep(0.1)  # Send every 100ms
+        time.sleep(1)  # Send every 100ms
 
 
 # Dash App for Control
@@ -153,5 +157,5 @@ if __name__ == "__main__":
     finally:
         send_rc = False
         rc_thread.join()
-        #   Close serial connection on exit
+        # Close serial connection on exit
         serial_conn.close()
