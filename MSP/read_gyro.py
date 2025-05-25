@@ -6,6 +6,7 @@ import time
 MSP_HEADER = b'$M<'
 MSP_ATTITUDE = 108  # MSP code for attitude information (gyro data)
 MSP_RAW_IMU = 102   # MSP code for raw IMU (accelerometer, gyro, and magnetometer)
+MSP_DEBUG_ARRAY = 300  # MSP code for debug array (for additional debug data)
 
 # Function to calculate checksum for MSP message
 def calculate_checksum(message):
@@ -24,6 +25,13 @@ def construct_msp_request(msp_command):
 def parse_msp_attitude(response):
     roll, pitch, yaw = struct.unpack('<hhh', response[5:11])
     return roll / 10, pitch / 10, yaw / 10  # MSP Attitude returns data in tenths of a degree
+
+# Function to parse the MSP debug array response (24 doubles = 192 bytes)
+def parse_msp_debug_array(response):
+    if len(response) != 192:
+        raise ValueError(f"Expected 192 bytes for 24 doubles, got {len(response)}")
+    return struct.unpack('<24d', response)  # Skip header and length
+    # return struct.unpack('<24d', response[5:197])  # Skip header and length
 
 # Function to send an MSP request and read the response
 def send_msp_request(ser, msp_command):
@@ -60,6 +68,13 @@ def main():
             response = send_msp_request(ser, MSP_ATTITUDE)
             roll, pitch, yaw = parse_msp_attitude(response)
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
+            
+            # Debug array (24 doubles)
+            debug_response = send_msp_request(ser, MSP_DEBUG_ARRAY)
+            debug_array = parse_msp_debug_array(debug_response)
+            print("Debug Array:")
+            for i, val in enumerate(debug_array):
+                print(f"  [{i:02}] {val:.6f}")
             
             # Wait before sending the next request
             time.sleep(1)
